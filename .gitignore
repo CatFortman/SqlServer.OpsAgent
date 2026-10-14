@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# OpsAgent run output: transcripts and case state contain server names, query text and DMV data
+runs/

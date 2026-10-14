@@ -67,7 +67,7 @@ Invalid alerts are rejected before any model call. Each monitoring source gets i
 
 ## Setup (planned)
 
-Requires Python 3.12+, an Anthropic API key, and a built [SqlServer.Mcp](https://github.com/CatFortman/SqlServer.Mcp).
+Requires Python 3.13+, an Anthropic API key, and a built [SqlServer.Mcp](https://github.com/CatFortman/SqlServer.Mcp).
 
 ```bash
 python -m venv .venv
@@ -103,4 +103,4 @@ Each run writes `runs/<alert_id>/transcript.jsonl` (every message), `case.json` 
 
 ## Learning context
 
-Part of a hands-on lab for the Claude Certified Architect – Foundations exam, built on the Claude Agent SDK. `spikes/raw_loop/` (#1) is a hand-written agentic loop on the Messages API, kept outside the package on purpose. The repo covers agentic loops (1.1), coordinator-subagent orchestration (1.2, 1.3), enforcement and handoff (1.4), hooks (1.5), tool distribution (2.3), escalation (5.2), error propagation (5.3) and provenance (5.6). Issues carry the `ccar-f` label except #7.
+Part of a hands-on lab for the Claude Certified Architect – Foundations exam, built on the Claude Agent SDK. `spikes/raw_loop.py` (#1) is a hand-written agentic loop on the Messages API, kept outside the package on purpose. The repo covers agentic loops (1.1), coordinator-subagent orchestration (1.2, 1.3), enforcement and handoff (1.4), hooks (1.5), tool distribution (2.3), escalation (5.2), error propagation (5.3) and provenance (5.6). Issues carry the `ccar-f` label except #7.
