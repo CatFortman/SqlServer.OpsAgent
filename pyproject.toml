@@ -11,8 +11,13 @@ dependencies = [
 [tool.uv]
 python-preference = "only-managed"
 
+[tool.mypy]
+strict = true
+files = ["opsagent", "spikes"]
+
 [dependency-groups]
 dev = [
     "mypy>=2.4.0",
     "pytest>=9.1.1",
+    "ruff>=0.17.1",
 ]
