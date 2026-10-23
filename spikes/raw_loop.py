@@ -9,6 +9,15 @@ def main() -> None:
     # Create a client. It reads ANTHROPIC_API_KEY from the environment.
     client = anthropic.Anthropic()
 
+    # Store model
+    model = "claude-haiku-5-5"
+
+    # Store max tokens
+    max_tokens = 1024
+
+    # Iteration cap
+    max_turns = 20  # backstop only, set well above what a normal run needs
+
     # Define one tool. The input_schema is a JSON Schema object describing
     # the arguments Claude should pass when it calls this tool. This schema
     # includes nested objects (recurrence), arrays (attendees), and optional
@@ -37,6 +46,8 @@ def main() -> None:
                 },
                 "required": ["title", "start", "end"],
             },
+            "strict": True,
+            "additionalProperties": False
         },
         {
             "name": "list_calendar_events",
@@ -48,6 +59,8 @@ def main() -> None:
                 },
                 "required": ["date"],
             },
+            "strict": True,
+            "additionalProperties": False
         },
     ]
 
@@ -71,7 +84,8 @@ def main() -> None:
             }
         raise ValueError(f"Unknown tool: {name}")
 
-    def handle_response(response: anthropic.types.Message) -> Any:
+    # Handle all response types
+    def handle_response(response: anthropic.types.Message) -> anthropic.types.Message:
         match response.stop_reason:
             case "tool_use":
                 return handle_tool_use(response)
@@ -85,13 +99,13 @@ def main() -> None:
                 return handle_refusal(response)
             case _:
                 # Handle end_turn and other cases
-                return next(
+                return {"role": "user", "content":  next(
                     (block.text for block in response.content if block.type == "text"),
                     "",
-                )
+                )}
 
-    def handle_tool_use(response: anthropic.types.Message) -> list[Any]:
-        tool_results = []
+    def handle_tool_use(response: anthropic.types.Message) -> anthropic.types.Message:
+        tool_results: list[anthropic.types.ToolResultBlockParam] = []
         for block in response.content:
             if block.type == "tool_use":
                 try:
@@ -113,27 +127,30 @@ def main() -> None:
                             "is_error": True,
                         }
                     )
-        return tool_results
+        return {"role": "user", "content": tool_results}
 
-    def handle_truncation(response: anthropic.types.Message) -> list[Any]:
+    def handle_truncation(response: anthropic.types.Message) -> anthropic.types.Message:
         print("Response was truncated due to max_tokens limit.")
         # Implement logic to handle truncation, e.g., request more tokens or summarize.
-        return []
+        return {"role": "user", "content": []}
 
-    def handle_context_limit(response: anthropic.types.Message) -> list[Any]:
+    def handle_context_limit(response: anthropic.types.Message) -> anthropic.types.Message:
         print("Response exceeded model context window.")
         # Implement logic to handle context limit, e.g., summarize or split conversation.
-        return []
+        return {"role": "user", "content": []}
 
-    def handle_pause(response: anthropic.types.Message) -> list[Any]:
+
+    def handle_pause(response: anthropic.types.Message) -> anthropic.types.Message:
         print("Response was paused.")
-        # Implement logic to handle pause, e.g., wait for user input or continue.
-        return []
+        # Implement logic to handle pause, e.g., anthropic.types.Message.
+        return {"role": "user", "content": []}
+
 
     def handle_refusal(response: anthropic.types.Message) -> list[Any]:
         print("Model refused to answer.")
         # Implement logic to handle refusal, e.g., provide more context or rephrase the question.
-        return []
+        return {"role": "user", "content": []}
+
 
     # Keep the full conversation history in a list so each turn sees prior context.
     messages: list[anthropic.types.MessageParam] = [
@@ -146,8 +163,8 @@ def main() -> None:
 
     # Send the initial message to Claude, which will likely result in a tool_use stop reason.
     response = client.messages.create(
-        model="claude-haiku-5-5",
-        max_tokens=1024,
+        model=model,
+        max_tokens=max_tokens,
         tools=tools,
         messages=messages,
     )
@@ -163,22 +180,31 @@ def main() -> None:
 
     # Loop until Claude stops asking for tools. Each iteration runs the requested
     # tool, appends the result to history, and asks Claude to continue.
-    while response.stop_reason == "tool_use":
+    for turn in range(max_turns):
         # Handle the tool_use response and run the requested tool(s)
-        results = handle_response(response)
+        if response.stop_reason == "tool_use":
+            user_message = handle_response(response)
+            continue
 
         messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": results})
+        messages.append(user_message)
 
         response = client.messages.create(
-            model="claude-haiku-5-5",
-            max_tokens=1024,
+            model=model,
+            max_tokens=max_tokens,
             tools=tools,
             messages=messages,
         )
 
-    final_text = next(block for block in response.content if block.type == "text")
-    print(f"final_text: {final_text.text}")
+         # Primary stop condition: the model says why it stopped.
+        if response.stop_reason == "end_turn":
+            return next(
+                (b.text for b in response.content if b.type == "text"), ""
+            )
+
+        # max_tokens, refusal, etc. are not success either.
+        if turn == max_tokens:
+            raise RuntimeError(f"Agent stopped unexpectedly: {response.stop_reason}")
 
     # Avoid the three anti-patterns on purpose, and write one line each on why they're wrong:
     # an iteration cap as the primary stop condition (keep one only as a backstop, logged as abnormal);
