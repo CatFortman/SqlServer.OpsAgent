@@ -26,6 +26,7 @@ def main() -> None:
         {
             "name": "create_calendar_event",
             "description": "Create a calendar event with attendees and optional recurrence.",
+            "strict": True,
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -44,23 +45,22 @@ def main() -> None:
                         },
                     },
                 },
-                "required": ["title", "start", "end"],
+                "additionalProperties": False,
+                "required": ["title", "start", "end"]
             },
-            "strict": True,
-            "additionalProperties": False
         },
         {
             "name": "list_calendar_events",
             "description": "List all calendar events on a given date.",
+            "strict": True,
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "date": {"type": "string", "format": "date"},
                 },
-                "required": ["date"],
+                "required": ["date"],                
+                "additionalProperties": False
             },
-            "strict": True,
-            "additionalProperties": False
         },
     ]
 
@@ -85,7 +85,7 @@ def main() -> None:
         raise ValueError(f"Unknown tool: {name}")
 
     # Handle all response types
-    def handle_response(response: anthropic.types.Message) -> anthropic.types.Message:
+    def handle_response(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         match response.stop_reason:
             case "tool_use":
                 return handle_tool_use(response)
@@ -104,7 +104,7 @@ def main() -> None:
                     "",
                 )}
 
-    def handle_tool_use(response: anthropic.types.Message) -> anthropic.types.Message:
+    def handle_tool_use(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         tool_results: list[anthropic.types.ToolResultBlockParam] = []
         for block in response.content:
             if block.type == "tool_use":
@@ -129,24 +129,24 @@ def main() -> None:
                     )
         return {"role": "user", "content": tool_results}
 
-    def handle_truncation(response: anthropic.types.Message) -> anthropic.types.Message:
+    def handle_truncation(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response was truncated due to max_tokens limit.")
         # Implement logic to handle truncation, e.g., request more tokens or summarize.
         return {"role": "user", "content": []}
 
-    def handle_context_limit(response: anthropic.types.Message) -> anthropic.types.Message:
+    def handle_context_limit(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response exceeded model context window.")
         # Implement logic to handle context limit, e.g., summarize or split conversation.
         return {"role": "user", "content": []}
 
 
-    def handle_pause(response: anthropic.types.Message) -> anthropic.types.Message:
+    def handle_pause(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response was paused.")
-        # Implement logic to handle pause, e.g., anthropic.types.Message.
+        # Implement logic to handle pause, e.g., anthropic.types.MessageParam.
         return {"role": "user", "content": []}
 
 
-    def handle_refusal(response: anthropic.types.Message) -> list[Any]:
+    def handle_refusal(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Model refused to answer.")
         # Implement logic to handle refusal, e.g., provide more context or rephrase the question.
         return {"role": "user", "content": []}
@@ -198,7 +198,7 @@ def main() -> None:
 
          # Primary stop condition: the model says why it stopped.
         if response.stop_reason == "end_turn":
-            return next(
+            next(
                 (b.text for b in response.content if b.type == "text"), ""
             )
 
