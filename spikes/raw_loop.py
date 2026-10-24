@@ -54,6 +54,19 @@ def main() -> None:
             },
         },
         {
+            "name" : "check_blocking",
+            "description": "Checks if database is blocked.",
+            "strict": True,
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "database_name": {"type": "string"},
+                },
+                "additionalProperties": False,
+                "required": ["database_name"]
+            },
+        },
+        {
             "name": "list_calendar_events",
             "description": "List all calendar events on a given date.",
             "strict": True,
@@ -88,6 +101,11 @@ def main() -> None:
                     {"title": "Existing meeting", "start": "14:00", "end": "15:00"}
                 ]
             }
+        if name == "check_blocking":
+            return {
+                "database_name": tool_input["database_name"],
+                "status": "non-blocking"
+            }
         raise ValueError(f"Unknown tool: {name}")
 
     # Handle all response types
@@ -100,7 +118,7 @@ def main() -> None:
             case "model_context_window_exceeded":
                 return handle_context_limit(response)
             case "pause_turn":
-                return handle_pause(response)
+                return None
             case "refusal":
                 return handle_refusal(response)
             case "end_turn": 
@@ -108,7 +126,6 @@ def main() -> None:
             case _:
                 # Throw error
                 raise RuntimeError(f"Unexpected agent stop reason: {response.stop_reason}")
-
 
     def handle_tool_use(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         tool_results: list[anthropic.types.ToolResultBlockParam] = []
@@ -138,22 +155,17 @@ def main() -> None:
     def handle_truncation(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response was truncated due to max_tokens limit.")
         # Implement logic to handle truncation, e.g., request more tokens or summarize.
-        return {"role": "user", "content": []}
+        raise RuntimeError("Response truncated at max_tokens")
 
     def handle_context_limit(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response exceeded model context window.")
         # Implement logic to handle context limit, e.g., summarize or split conversation.
-        return {"role": "user", "content": []}
-
-    def handle_pause(response: anthropic.types.Message) -> anthropic.types.MessageParam:
-        print("Response was paused.")
-        # Implement logic to handle pause, e.g., anthropic.types.MessageParam.
-        return {"role": "user", "content": []}
+        raise RuntimeError("Response exceeded model context window")
 
     def handle_refusal(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Model refused to answer.")
         # Implement logic to handle refusal, e.g., provide more context or rephrase the question.
-        return {"role": "user", "content": []}
+        raise RuntimeError("Response declined for safety reasons")
 
 
     # Keep the full conversation history in a list so each turn sees prior context.
@@ -161,7 +173,7 @@ def main() -> None:
         {
             "role": "user",
             "content": "Schedule a one-hour all-hands on Monday, March 30, 2026 at 10am with everyone: "
-            + ", ".join(f"user{i}@example.com" for i in range(15)),
+            + ", ".join(f"user{i}@example.com" for i in range(15)) + ". Check blocking on SalesDB and InventoryDB.",
         }
     ]
 
@@ -189,14 +201,18 @@ def main() -> None:
         user_message = handle_response(response)       
 
         # Primary stop condition: the model says why it stopped.
-        if user_message is None:
+        if user_message is None and response.stop_reason == "end_turn":
             for b in response.content:
                 if b.type == "text":
                     print(b.text)
             return            
 
         messages.append({"role": "assistant", "content": response.content})
-        messages.append(user_message)
+        
+        # Append the assistant response unchanged and call the API again with the same tools. 
+        # Repeat until you get a non-pause_turn stop reason.
+        if user_message is not None and response.stop_reason != "pause_turn":
+            messages.append(user_message)
 
         response = client.messages.create(
             model=model,
@@ -213,10 +229,22 @@ def main() -> None:
     # treating "the assistant produced text" as completion;
     # parsing the text for "done".
 
-    # 1. Iteration cap as primary stop condition: This can prematurely terminate the conversation before the assistant has completed its task, leading to incomplete or incorrect results.
-    # 2. Treating "the assistant produced text" as completion: The assistant may produce text that is not the final answer, and treating it as completion can lead to missing important follow-up actions or clarifications.
-    # 3. Parsing the text for "done": This approach is brittle and can fail if the assistant uses different phrasing or if the word "done" appears in a different context, leading to incorrect assumptions about task completion.
+    # 1. Iteration cap as primary stop condition: This can prematurely terminate the conversation before 
+    # the assistant has completed its task, leading to incomplete or incorrect results.
+    # If an agent response takes 12 turns, then an iteration cap of 10 blocks the model from completing the work.
+    # If an agent reponse is complete after 2 turns, an iteration cap of 10 will cause the loop to run
+    # unnecessary iterations. A cap can be used as a backup fail-safe to stop the loop after an exessive amount of turns.
 
+    # 2. Treating "the assistant produced text" as completion: The assistant may produce text that is not
+    # the final answer, and treating it as completion can lead to missing important follow-up actions or clarifications.
+    # Text blocks often accompany tool blocks. Only rely on the stop_reason property, as this is the primary signal for
+    # completion.
+
+    # 3. Parsing the text for "done": This approach is brittle and can fail if the assistant 
+    # uses different phrasing or if the word "done" appears in a different context, leading to incorrect assumptions about task completion.
+    # Processing a keyword block can cause additional blocks that follow the keyword block to stop early.
+
+    # README Section
 
 if __name__ == "__main__":
     main()
