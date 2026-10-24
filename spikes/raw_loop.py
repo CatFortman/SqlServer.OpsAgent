@@ -41,8 +41,12 @@ def main() -> None:
                         "type": "object",
                         "properties": {
                             "frequency": {"enum": ["daily", "weekly", "monthly"]},
-                            "count": {"type": "integer", "minimum": 1},
+                            "count": {
+                                "type": "integer",
+                                "description": "Number of occurrences. Must be at least 1.",
+                            },
                         },
+                        "additionalProperties": False
                     },
                 },
                 "additionalProperties": False,
@@ -66,11 +70,13 @@ def main() -> None:
 
     # Function definitions for handling different stop reasons.
     # Each function takes the response and returns a list of tool results or other relevant information.
-
     def run_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
         if name == "create_calendar_event":
             if "attendees" in tool_input and len(tool_input["attendees"]) > 10:
                 raise ValueError("Too many attendees (max 10)")
+            recurrence = tool_input.get("recurrence")
+            if recurrence and recurrence.get("count", 1) < 1:
+                raise ValueError("recurrence.count must be at least 1")
             return {
                 "event_id": "evt_123",
                 "status": "created",
@@ -85,7 +91,7 @@ def main() -> None:
         raise ValueError(f"Unknown tool: {name}")
 
     # Handle all response types
-    def handle_response(response: anthropic.types.Message) -> anthropic.types.MessageParam:
+    def handle_response(response: anthropic.types.Message) -> anthropic.types.MessageParam | None:
         match response.stop_reason:
             case "tool_use":
                 return handle_tool_use(response)
@@ -97,12 +103,12 @@ def main() -> None:
                 return handle_pause(response)
             case "refusal":
                 return handle_refusal(response)
+            case "end_turn": 
+                return None
             case _:
-                # Handle end_turn and other cases
-                return {"role": "user", "content":  next(
-                    (block.text for block in response.content if block.type == "text"),
-                    "",
-                )}
+                # Throw error
+                raise RuntimeError(f"Unexpected agent stop reason: {response.stop_reason}")
+
 
     def handle_tool_use(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         tool_results: list[anthropic.types.ToolResultBlockParam] = []
@@ -139,12 +145,10 @@ def main() -> None:
         # Implement logic to handle context limit, e.g., summarize or split conversation.
         return {"role": "user", "content": []}
 
-
     def handle_pause(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response was paused.")
         # Implement logic to handle pause, e.g., anthropic.types.MessageParam.
         return {"role": "user", "content": []}
-
 
     def handle_refusal(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Model refused to answer.")
@@ -180,11 +184,16 @@ def main() -> None:
 
     # Loop until Claude stops asking for tools. Each iteration runs the requested
     # tool, appends the result to history, and asks Claude to continue.
-    for turn in range(max_turns):
+    for _ in range(max_turns):
         # Handle the tool_use response and run the requested tool(s)
-        if response.stop_reason == "tool_use":
-            user_message = handle_response(response)
-            continue
+        user_message = handle_response(response)       
+
+        # Primary stop condition: the model says why it stopped.
+        if user_message is None:
+            for b in response.content:
+                if b.type == "text":
+                    print(b.text)
+            return            
 
         messages.append({"role": "assistant", "content": response.content})
         messages.append(user_message)
@@ -196,15 +205,8 @@ def main() -> None:
             messages=messages,
         )
 
-         # Primary stop condition: the model says why it stopped.
-        if response.stop_reason == "end_turn":
-            next(
-                (b.text for b in response.content if b.type == "text"), ""
-            )
-
-        # max_tokens, refusal, etc. are not success either.
-        if turn == max_tokens:
-            raise RuntimeError(f"Agent stopped unexpectedly: {response.stop_reason}")
+    # Max turns processed.
+    raise RuntimeError(f"Agent exceeded {max_turns} turns")
 
     # Avoid the three anti-patterns on purpose, and write one line each on why they're wrong:
     # an iteration cap as the primary stop condition (keep one only as a backstop, logged as abnormal);
