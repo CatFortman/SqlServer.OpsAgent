@@ -1,6 +1,5 @@
-from typing import Any
-
 import json
+from typing import Any
 
 import anthropic
 
@@ -108,8 +107,20 @@ def main() -> None:
             }
         raise ValueError(f"Unknown tool: {name}")
 
+    # Print every block in a response so each turn of the loop is visible.
+    def print_response(response: anthropic.types.Message) -> None:
+        print(f"[response] stop_reason={response.stop_reason}, {len(response.content)} block(s)")
+        for i, block in enumerate(response.content):
+            if block.type == "text":
+                print(f"  [{i}] text: {block.text}")
+            elif block.type == "tool_use":
+                print(f"  [{i}] tool_use: {block.name} id={block.id} input={block.input}")
+            else:
+                print(f"  [{i}] {block.type}")
+
     # Handle all response types
     def handle_response(response: anthropic.types.Message) -> anthropic.types.MessageParam | None:
+        print(f"[handle_response] branch: {response.stop_reason}")
         match response.stop_reason:
             case "tool_use":
                 return handle_tool_use(response)
@@ -131,8 +142,10 @@ def main() -> None:
         tool_results: list[anthropic.types.ToolResultBlockParam] = []
         for block in response.content:
             if block.type == "tool_use":
+                print(f"[handle_tool_use] running {block.name} (id={block.id})")
                 try:
                     result = run_tool(block.name, block.input)
+                    print(f"[handle_tool_use]   ok: {result}")
                     tool_results.append(
                         {
                             "type": "tool_result",
@@ -141,6 +154,7 @@ def main() -> None:
                         }
                     )
                 except Exception as exc:
+                    print(f"[handle_tool_use]   error: {exc}")
                     # Signal failure so Claude can retry or ask for clarification.
                     tool_results.append(
                         {
@@ -150,15 +164,28 @@ def main() -> None:
                             "is_error": True,
                         }
                     )
+        print(f"[handle_tool_use] sending {len(tool_results)} tool_result(s) in one user message")
         return {"role": "user", "content": tool_results}
 
     def handle_truncation(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response was truncated due to max_tokens limit.")
-        # Implement logic to handle truncation, e.g., request more tokens or summarize.
+        
+        # Print last text
+        for b in response.content:
+            if b.type == "text":
+                print(b.text)
+
+        # Throw exception or request more tokens or summarize.
         raise RuntimeError("Response truncated at max_tokens")
 
     def handle_context_limit(response: anthropic.types.Message) -> anthropic.types.MessageParam:
         print("Response exceeded model context window.")
+
+        # Print last text
+        for b in response.content:
+            if b.type == "text":
+                print(b.text)
+
         # Implement logic to handle context limit, e.g., summarize or split conversation.
         raise RuntimeError("Response exceeded model context window")
 
@@ -177,74 +204,45 @@ def main() -> None:
         }
     ]
 
-    # Send the initial message to Claude, which will likely result in a tool_use stop reason.
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        tools=tools,
-        messages=messages,
-    )
-
-    # Print each block in the response content. The tool_use block is an SDK object
-    for block in response.content:
-        print(f"block type: {block.type}")
-        if block.type == "text":
-            print(f"text: {block.text}")
-        elif block.type == "tool_use":
-            print(f"tool_use name: {block.name}")
-            print(f"tool_use input: {block.input}")
-
     # Loop until Claude stops asking for tools. Each iteration runs the requested
     # tool, appends the result to history, and asks Claude to continue.
     for _ in range(max_turns):
-        # Handle the tool_use response and run the requested tool(s)
-        user_message = handle_response(response)       
-
-        # Primary stop condition: the model says why it stopped.
-        if user_message is None and response.stop_reason == "end_turn":
-            for b in response.content:
-                if b.type == "text":
-                    print(b.text)
-            return            
-
-        messages.append({"role": "assistant", "content": response.content})
-        
-        # Append the assistant response unchanged and call the API again with the same tools. 
-        # Repeat until you get a non-pause_turn stop reason.
-        if user_message is not None and response.stop_reason != "pause_turn":
-            messages.append(user_message)
-
+        print(f"\n===== API call ({len(messages)} message(s) in history) =====")
         response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
             tools=tools,
             messages=messages,
         )
+        print_response(response)
+
+        # Handle the tool_use response and run the requested tool(s)
+        user_message = handle_response(response)
+
+        # Primary stop condition: the model says why it stopped.
+        if user_message is None:
+            if response.stop_reason == "end_turn":
+                print("[loop] end_turn -> done")
+                for b in response.content:
+                    if b.type == "text":
+                        print(b.text)
+                return
+            # Append the assistant response unchanged and call the API again with the same tools.
+            # Repeat until you get a non-pause_turn stop reason.
+            if response.stop_reason == "pause_turn":
+                messages.append({"role": "assistant", "content": response.content})
+                print("[loop] pause_turn -> calling the API again")
+                continue
+            raise RuntimeError(f"No message to send for stop_reason={response.stop_reason}")
+
+        messages.append({"role": "assistant", "content": response.content})
+        print("[loop] appended assistant message")        
+
+        messages.append(user_message)
+        print("[loop] appended user message with tool results")
 
     # Max turns processed.
     raise RuntimeError(f"Agent exceeded {max_turns} turns")
-
-    # Avoid the three anti-patterns on purpose, and write one line each on why they're wrong:
-    # an iteration cap as the primary stop condition (keep one only as a backstop, logged as abnormal);
-    # treating "the assistant produced text" as completion;
-    # parsing the text for "done".
-
-    # 1. Iteration cap as primary stop condition: This can prematurely terminate the conversation before 
-    # the assistant has completed its task, leading to incomplete or incorrect results.
-    # If an agent response takes 12 turns, then an iteration cap of 10 blocks the model from completing the work.
-    # If an agent reponse is complete after 2 turns, an iteration cap of 10 will cause the loop to run
-    # unnecessary iterations. A cap can be used as a backup fail-safe to stop the loop after an exessive amount of turns.
-
-    # 2. Treating "the assistant produced text" as completion: The assistant may produce text that is not
-    # the final answer, and treating it as completion can lead to missing important follow-up actions or clarifications.
-    # Text blocks often accompany tool blocks. Only rely on the stop_reason property, as this is the primary signal for
-    # completion.
-
-    # 3. Parsing the text for "done": This approach is brittle and can fail if the assistant 
-    # uses different phrasing or if the word "done" appears in a different context, leading to incorrect assumptions about task completion.
-    # Processing a keyword block can cause additional blocks that follow the keyword block to stop early.
-
-    # README Section
 
 if __name__ == "__main__":
     main()
