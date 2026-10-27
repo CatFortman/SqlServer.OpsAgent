@@ -1,30 +1,39 @@
-    # README
-    # 
-    # The Agent SDK takes over the following functionality in this loop: 
-    #   tool execution - in this file I created a tool execution call and append the tool results to the user message param.
-    #                    The SDK runs the whole tool loop, and it also comes with built-in tools.
-    #   permissions - This is about whether a tool call is allowed to run (allow, deny or ask a person). This loop runs every tool Claude asks  #                 for, with no check.
-    #   hooks - no hoooks are in the agentic loop here. The SDK runs the loop, so it gives you fixed points instead: PreToolUse, PostToolUse, #           Stop.
-    #   context management - The SDK summarizes it automatically, while your loop just raises at the limit.
-    #   sessions - Messages list lives only in memory and are gone when the script exits. The SDK saves and resumes sessions and conversation #              across runs
+# Raw agentic loop spike
 
-    # Avoid the three anti-patterns on purpose, and write one line each on why they're wrong:
-    # an iteration cap as the primary stop condition (keep one only as a backstop, logged as abnormal);
-    # treating "the assistant produced text" as completion;
-    # parsing the text for "done".
+Throwaway spike for #1: a hand-written agentic loop on the Messages API, so the `stop_reason` control flow is something I've debugged rather than read about.
 
-    # 1. Iteration cap as primary stop condition: This can prematurely terminate the conversation before 
-    # the assistant has completed its task, leading to incomplete or incorrect results.
-    # If an agent response takes 12 turns, then an iteration cap of 10 blocks the model from completing the work.
-    # Hitting the cap looks the same as a completed run. 
-    # A cap can be used as a backup fail-safe to stop the loop after an exessive amount of turns.
+## What the Agent SDK takes over
 
-    # 2. Treating "the assistant produced text" as completion: The assistant may produce text that is not
-    # the final answer, and treating it as completion can lead to missing important follow-up actions or clarifications.
-    # Text blocks often accompany tool blocks. Only rely on the stop_reason property, as this is the primary signal for
-    # completion.
+- **Loop control (`stop_reason`)**: This loop uses `tool_use`, `end_turn` and `max_tokens` to decide when to stop. With the SDK, the loop makes that decision, and the final `ResultMessage` reports the outcome in two fields:
+  - `subtype` says why the loop stopped: `success`, `error_max_turns`, `error_max_budget_usd`, `error_during_execution` or `error_max_structured_output_retries`. `result` is only present on `success`.
+  - `stop_reason` says why the model stopped on its last turn: `end_turn`, `max_tokens` or `refusal`. It is `null` after a crash.
 
-    # 3. Parsing the text for "done": This approach is brittle and can fail if the assistant 
-    # uses different phrasing or if the word "done" appears in a different context, leading to incorrect assumptions about task completion.
-    # Processing a keyword block can cause additional blocks that follow the keyword block to stop early.
+  `max_tokens` comes from the model: it ran out of output. A turn or budget cap comes from the harness: the host stopped a model that wasn't finished. When a cap cuts the loop off, `stop_reason` is just the last response's value, so if you look only at `stop_reason`, a run cut off by the turn cap can look like a normal finish. In `transcript.jsonl`, the `ResultMessage` `subtype` (`error_max_turns` or `error_max_budget_usd`) tells them apart.
 
+- **Tool execution**: This spike sends a query that produces parallel `tool_use` blocks. After executing the tools, I append the tool results, matched by `tool_use_id`, to the next user message. If a tool raises an error, a readable message goes back to the model with `is_error` set. The SDK runs the whole tool loop and also comes with built-in tools.
+
+- **Permissions**: Whether a tool call is allowed to run (allow, deny, or ask a person). This loop runs every tool Claude asks for, with no check. The SDK runs its checks in a fixed order, and the first one that decides wins:
+
+  hooks → deny rules → ask rules → permission mode → allow rules → `can_use_tool`
+
+  <!-- TODO: name the options that feed each step: permission_mode, allowed_tools / disallowed_tools, can_use_tool. Add the dontAsk-for-diagnose decision and its one-line why. -->
+
+- **Hooks**: This loop has no hooks. Because the SDK owns the loop, it gives you fixed interception points instead: `PreToolUse`, `PostToolUse`, `Stop`. <!-- TODO: one line on why a PreToolUse hook is a stronger guarantee than a prompt instruction -->
+
+- **Context management**: The SDK compacts the conversation automatically as it approaches the context window limit, while this loop raises an error when it reaches the limit.
+
+- **Sessions**: The messages list lives only in memory and is gone when the script exits. The SDK saves sessions and can resume them across runs.
+
+## Anti-patterns avoided
+
+### 1. An iteration cap as the primary stop condition
+
+A cap can terminate the loop before the model has finished, which leaves the task incomplete or wrong. If a task takes 12 turns, a cap of 10 stops the model before it completes the work, and hitting the cap looks the same as a completed run. A cap is still useful as a backstop that stops the loop after an excessive number of turns, logged as abnormal.
+
+### 2. Treating "the assistant produced text" as completion
+
+Text blocks often accompany `tool_use` blocks, so text in a response doesn't mean the task is finished. Treating it as completion skips the follow-up actions the model asked for. `stop_reason` is the signal for completion.
+
+### 3. Parsing the text for "done"
+
+This is brittle. The model can phrase completion differently, or use the word "done" in another context, and the loop draws the wrong conclusion. Processing a keyword block can cause additional blocks that follow the keyword block to stop early. <!-- TODO: sharpen this sentence -->
