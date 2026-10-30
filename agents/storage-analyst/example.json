@@ -1,0 +1,56 @@
+{
+  "analyst": "storage-analyst",
+  "status": "partial",
+  "scope": {
+    "server": "SQL-PROD-01",
+    "database": "Orders",
+    "object": null,
+    "window_start": "2026-10-29T13:00:00Z",
+    "window_end": "2026-10-29T14:00:00Z"
+  },
+  "assessment": {
+    "summary": "The primary data file was using 78 percent of its configured maximum size at collection time. Underlying volume free space and historical storage latency were unavailable, so the evidence is insufficient to determine whether storage capacity or I/O contributed to the incident.",
+    "confidence": "low"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "type": "observation",
+      "statement": "The primary data file was using 78 percent of its configured maximum size at collection time.",
+      "evidence_refs": [
+        "E1"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "kind": "database_file_capacity_snapshot",
+      "source": "SqlServer.Mcp database-file diagnostic",
+      "captured_at": "2026-10-29T14:04:10Z",
+      "measurement_window": null,
+      "query_id": null,
+      "metrics": [
+        {
+          "name": "configured_max_used_percent",
+          "value": 78,
+          "unit": "percent"
+        }
+      ],
+      "limitations": [
+        "Point-in-time database file measurement; does not establish growth rate or underlying volume capacity."
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "stage": "volume_capacity",
+      "tool": "SqlServer.Mcp volume diagnostic",
+      "message": "Underlying volume free-space information was not available."
+    }
+  ],
+  "not_checked": [
+    "Historical storage latency was unavailable.",
+    "File growth trend over the incident window was not established."
+  ]
+}

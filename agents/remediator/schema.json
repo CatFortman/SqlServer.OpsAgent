@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpsAgent remediation handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "safety",
+    "proposal",
+    "tool_result",
+    "verification",
+    "errors"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "not_attempted",
+        "blocked",
+        "awaiting_human_approval",
+        "executed",
+        "failed",
+        "verification_pending"
+      ]
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "diagnosis_present",
+        "allowlisted",
+        "dry_run_passed",
+        "human_approval_present"
+      ],
+      "properties": {
+        "diagnosis_present": {
+          "type": "boolean"
+        },
+        "allowlisted": {
+          "type": "boolean"
+        },
+        "dry_run_passed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "human_approval_present": {
+          "type": "boolean"
+        },
+        "gate_result": {
+          "type": "string",
+          "enum": [
+            "not_evaluated",
+            "denied",
+            "permitted"
+          ]
+        }
+      }
+    },
+    "proposal": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "action_type",
+        "action_id",
+        "arguments",
+        "rationale",
+        "evidence_refs",
+        "blast_radius",
+        "risks"
+      ],
+      "properties": {
+        "action_type": {
+          "type": "string",
+          "enum": [
+            "migration",
+            "allowlisted_script"
+          ]
+        },
+        "action_id": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blast_radius": {
+          "type": "string"
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tool_result": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "result_summary": {
+          "type": "string"
+        },
+        "execution_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_run",
+            "passed",
+            "failed",
+            "inconclusive"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

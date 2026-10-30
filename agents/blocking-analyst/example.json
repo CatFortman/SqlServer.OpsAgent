@@ -1,0 +1,93 @@
+{
+  "analyst": "blocking-analyst",
+  "status": "partial",
+  "scope": {
+    "server": "SQL-PROD-01",
+    "database": "Orders",
+    "object": "dbo.OrderHeader",
+    "window_start": "2026-10-29T13:00:00Z",
+    "window_end": "2026-10-29T14:00:00Z"
+  },
+  "assessment": {
+    "summary": "A captured blocking snapshot shows session 74 blocking three requests accessing dbo.OrderHeader. The available evidence does not establish whether this session caused the full alert duration or whether blocking persisted throughout the window.",
+    "confidence": "moderate"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "type": "observation",
+      "statement": "Session 74 was the head blocker in the captured snapshot and three requests were waiting behind it.",
+      "evidence_refs": [
+        "E1"
+      ]
+    },
+    {
+      "id": "C2",
+      "type": "inference",
+      "statement": "The observed blocking may have contributed to the reported application delays, but the snapshot alone does not establish duration or full incident impact.",
+      "evidence_refs": [
+        "E1",
+        "E2"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "kind": "blocking_snapshot",
+      "source": "SqlServer.Mcp blocking-chain diagnostic",
+      "captured_at": "2026-10-29T13:42:18Z",
+      "measurement_window": null,
+      "query_id": null,
+      "metrics": [
+        {
+          "name": "head_blocker_session_id",
+          "value": 74,
+          "unit": "session_id"
+        },
+        {
+          "name": "blocked_request_count",
+          "value": 3,
+          "unit": "requests"
+        }
+      ],
+      "limitations": [
+        "Point-in-time snapshot; does not establish how long the blocking chain existed."
+      ]
+    },
+    {
+      "id": "E2",
+      "kind": "active_request_detail",
+      "source": "SqlServer.Mcp active-request diagnostic",
+      "captured_at": "2026-10-29T13:42:21Z",
+      "measurement_window": null,
+      "query_id": null,
+      "metrics": [
+        {
+          "name": "wait_type",
+          "value": "LCK_M_X",
+          "unit": null
+        },
+        {
+          "name": "wait_duration",
+          "value": 184000,
+          "unit": "milliseconds"
+        }
+      ],
+      "limitations": [
+        "Wait duration was observed at collection time and may not represent total incident duration."
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "stage": "historical_review",
+      "tool": "SqlServer.Mcp historical blocking diagnostic",
+      "message": "Historical blocking data was unavailable for part of the requested window."
+    }
+  ],
+  "not_checked": [
+    "Application-side request correlation was not available.",
+    "The blocking condition may have cleared before other diagnostics ran."
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "analyst": "workload-analyst",
+  "status": "complete",
+  "scope": {
+    "server": "SQL-PROD-01",
+    "database": "Orders",
+    "object": null,
+    "window_start": "2026-10-29T13:00:00Z",
+    "window_end": "2026-10-29T14:00:00Z"
+  },
+  "assessment": {
+    "summary": "Query Q-481 was the largest CPU consumer in the sampled workload. Its mean duration and logical reads were materially higher than the supplied comparable baseline. This supports a workload-regression hypothesis but does not prove root cause.",
+    "confidence": "moderate"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "type": "observation",
+      "statement": "Q-481 accounted for 62 percent of measured query CPU in the returned sample.",
+      "evidence_refs": [
+        "E1"
+      ]
+    },
+    {
+      "id": "C2",
+      "type": "comparison",
+      "statement": "Mean duration increased from 2.4 to 28.6 seconds and logical reads increased from 42000 to 510000 per execution.",
+      "evidence_refs": [
+        "E2"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "kind": "query_runtime_statistics",
+      "source": "SqlServer.Mcp workload diagnostic",
+      "captured_at": "2026-10-29T14:02:11Z",
+      "measurement_window": {
+        "start": "2026-10-29T13:00:00Z",
+        "end": "2026-10-29T14:00:00Z"
+      },
+      "query_id": "Q-481",
+      "metrics": [
+        {
+          "name": "cpu_share",
+          "value": 62,
+          "unit": "percent"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "E2",
+      "kind": "baseline_comparison",
+      "source": "SqlServer.Mcp query runtime history",
+      "captured_at": "2026-10-29T14:03:04Z",
+      "measurement_window": {
+        "start": "2026-10-29T13:00:00Z",
+        "end": "2026-10-29T14:00:00Z"
+      },
+      "query_id": "Q-481",
+      "metrics": [
+        {
+          "name": "mean_duration",
+          "value": null,
+          "unit": "seconds",
+          "baseline": 2.4,
+          "observed": 28.6
+        },
+        {
+          "name": "logical_reads",
+          "value": null,
+          "unit": "reads_per_execution",
+          "baseline": 42000,
+          "observed": 510000
+        }
+      ],
+      "limitations": [
+        "Baseline comparability is assumed for this illustrative example; a real finding must state how comparability was established."
+      ]
+    }
+  ],
+  "errors": [],
+  "not_checked": [
+    "Parameter sensitivity was not established from the available samples.",
+    "Storage latency was outside this analyst's assigned scope."
+  ]
+}
