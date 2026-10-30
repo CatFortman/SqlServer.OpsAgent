@@ -67,26 +67,36 @@ Invalid alerts are rejected before any model call. Each monitoring source gets i
 
 ## Setup (planned)
 
-Requires Python 3.13+, an Anthropic API key, and a built [SqlServer.Mcp](https://github.com/CatFortman/SqlServer.Mcp).
+Requires [uv](https://docs.astral.sh/uv/), an Anthropic API key, and a built [SqlServer.Mcp](https://github.com/CatFortman/SqlServer.Mcp). uv installs the Python version pinned in `.python-version` (3.13+) if you don't have it.
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e .
+uv sync                          # creates .venv and installs dependencies from uv.lock
 set ANTHROPIC_API_KEY=...
-set SQLSERVER_CONNECTION=...    # use a read-only SQL login
+set SQLSERVER_CONNECTION=...     # use a read-only SQL login
 ```
 
 Point the configuration at a **published** SqlServer.Mcp executable rather than `dotnet run`, which rebuilds on every session start.
 
 ## Usage (planned)
 
+Run from the repo root:
+
 ```bash
-python -m opsagent diagnose  --alert alerts/blocking-orders.json
-python -m opsagent remediate --alert alerts/blocking-orders.json
+uv run python -m opsagent diagnose  --alert alerts/blocking-orders.json
+uv run python -m opsagent remediate --alert alerts/blocking-orders.json
 ```
 
 Each run writes `runs/<alert_id>/transcript.jsonl` (every message), `case.json` (state the host owns) and the diagnosis.
+
+## Development
+
+```bash
+uv run pytest
+uv run mypy
+uv run ruff check .
+uv add <package>                 # add a runtime dependency (updates pyproject.toml and uv.lock)
+uv add --dev <package>           # add a dev-only dependency
+```
 
 ## Limitations
 
@@ -103,4 +113,4 @@ Each run writes `runs/<alert_id>/transcript.jsonl` (every message), `case.json` 
 
 ## Learning context
 
-Part of a hands-on lab for the Claude Certified Architect – Foundations exam, built on the Claude Agent SDK. `spikes/raw_loop.py` (#1) is a hand-written agentic loop on the Messages API, kept outside the package on purpose. The repo covers agentic loops (1.1), coordinator-subagent orchestration (1.2, 1.3), enforcement and handoff (1.4), hooks (1.5), tool distribution (2.3), escalation (5.2), error propagation (5.3) and provenance (5.6). Issues carry the `ccar-f` label except #7.
+Part of a hands-on lab for the Claude Certified Architect – Foundations exam, built on the Claude Agent SDK. `spikes/raw_loop/` (#1) is a hand-written agentic loop on the Messages API, kept outside the package on purpose. The repo covers agentic loops (1.1), coordinator-subagent orchestration (1.2, 1.3), enforcement and handoff (1.4), hooks (1.5), tool distribution (2.3), escalation (5.2), error propagation (5.3) and provenance (5.6). Issues carry the `ccar-f` label except #7.

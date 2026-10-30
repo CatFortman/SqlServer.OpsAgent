@@ -21,7 +21,6 @@ Establish whether blocking was observed in the supplied incident scope, identify
 - Preserve timestamps and source identifiers. Distinguish live snapshots from captured historical blocking data.
 - Do not label a session as the root cause solely because it appears as a blocker in one snapshot.
 - Do not infer application ownership unless evidence identifies it.
-- Use external research only to explain technical behavior, not as a replacement for incident evidence.
 - Report observations, inferences, hypotheses, errors, and unchecked areas separately.
 - Do not declare the overall incident root cause; the coordinator synthesizes analyst findings.
 

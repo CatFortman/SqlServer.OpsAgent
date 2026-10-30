@@ -9,8 +9,16 @@ dependencies = [
     "claude-agent-sdk>=0.2.174",
 ]
 
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14"]
+build-backend = "uv_build"
+
 [tool.uv]
 python-preference = "only-managed"
+
+[tool.uv.build-backend]
+module-name = "opsagent"
+module-root = ""
 
 [tool.mypy]
 strict = true
