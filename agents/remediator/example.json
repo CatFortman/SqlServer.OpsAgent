@@ -1,0 +1,35 @@
+{
+  "status": "awaiting_human_approval",
+  "safety": {
+    "diagnosis_present": true,
+    "allowlisted": true,
+    "dry_run_passed": null,
+    "human_approval_present": false,
+    "gate_result": "denied"
+  },
+  "proposal": {
+    "action_type": "allowlisted_script",
+    "action_id": "EngineeringToolkit.RebuildOrderSummary",
+    "arguments": {
+      "server": "SQL-PROD-01",
+      "database": "Orders",
+      "order_id": 481
+    },
+    "rationale": "Illustrative proposal only; requires a validated diagnosis and explicit approval for these exact arguments.",
+    "evidence_refs": [
+      "workload.E1",
+      "blocking.E1"
+    ],
+    "blast_radius": "One order summary record in the Orders database.",
+    "risks": [
+      "The script may update derived data for the specified order.",
+      "The proposal has not been approved or executed."
+    ]
+  },
+  "tool_result": null,
+  "verification": {
+    "status": "not_run",
+    "summary": "No action has been executed; verification has not started."
+  },
+  "errors": []
+}

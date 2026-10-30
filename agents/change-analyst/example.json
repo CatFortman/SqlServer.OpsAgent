@@ -1,0 +1,73 @@
+{
+  "analyst": "change-analyst",
+  "status": "complete",
+  "scope": {
+    "server": "SQL-PROD-01",
+    "database": "Orders",
+    "object": "dbo.OrderHeader",
+    "window_start": "2026-10-29T12:30:00Z",
+    "window_end": "2026-10-29T14:00:00Z"
+  },
+  "assessment": {
+    "summary": "Migration 20261029-003 was recorded seven minutes before the reported symptoms and lists dbo.OrderHeader as an affected object. This timing and scope make it potentially relevant, but do not establish that the migration caused the incident.",
+    "confidence": "moderate"
+  },
+  "changes": [
+    {
+      "id": "CH1",
+      "source_id": "20261029-003",
+      "applied_at": "2026-10-29T13:05:00Z",
+      "description": "Illustrative migration affecting order-header indexing.",
+      "affected_objects": [
+        "dbo.OrderHeader"
+      ],
+      "relevance": "potentially_relevant",
+      "evidence_refs": [
+        "E1"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "type": "observation",
+      "statement": "Migration 20261029-003 was recorded at 13:05 UTC, seven minutes before the alert timestamp.",
+      "evidence_refs": [
+        "E1"
+      ]
+    },
+    {
+      "id": "C2",
+      "type": "inference",
+      "statement": "The migration is potentially relevant because its recorded time and affected object overlap with the incident context; causation is unproven.",
+      "evidence_refs": [
+        "E1"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "kind": "migration_history_record",
+      "source": "MigrationOps.recent_migrations",
+      "captured_at": "2026-10-29T14:05:12Z",
+      "measurement_window": null,
+      "query_id": null,
+      "metrics": [
+        {
+          "name": "minutes_before_alert",
+          "value": 7,
+          "unit": "minutes"
+        }
+      ],
+      "limitations": [
+        "Only changes recorded in this migration history source are represented."
+      ]
+    }
+  ],
+  "errors": [],
+  "not_checked": [
+    "Manual SQL changes outside the migration history source were not checked.",
+    "Application configuration changes were outside this analyst's assigned scope."
+  ]
+}
