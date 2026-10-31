@@ -1,0 +1,14 @@
+{
+  "alert_id": "unk-2026-10-31-0003",
+  "raised_at": "2026-10-31T14:05:00Z",
+  "server": "SQL-PROD-01",
+  "database": null,
+  "signal": "unknown",
+  "object": null,
+  "metric": {
+    "name": "cpu_percent",
+    "value": 97,
+    "threshold": 85
+  },
+  "message": "CPU sustained above 85% for 10 minutes. Source did not identify a database."
+}

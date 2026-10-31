@@ -1,0 +1,14 @@
+{
+  "alert_id": "slq-2026-10-31-0002",
+  "raised_at": "2026-10-31T09:15:00-03:00",
+  "server": "SQL-PROD-02",
+  "database": "Reporting",
+  "signal": "slow_queries",
+  "object": null,
+  "metric": {
+    "name": "avg_query_duration_ms",
+    "value": 4200,
+    "threshold": 1000
+  },
+  "message": "Average query duration on Reporting is 4.2x the threshold over the last 15 minutes."
+}
