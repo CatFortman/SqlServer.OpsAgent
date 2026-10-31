@@ -2,7 +2,7 @@
 
 First-pass triage for SQL Server incidents. Give it an alert; it investigates with read-only diagnostics and writes an evidence-backed diagnosis, so the on-call engineer starts from findings instead of a blank query window. It can also propose a fix, which runs only behind a code-enforced gate and a human approval.
 
-> **Status: pre-alpha.** The build plan is filed as issues #1 to #7. No code yet. The commands below are the planned interface and may change.
+> **Status: pre-alpha.** The build plan is filed as issues #1 to #7. #1 (the raw-loop spike) is done. #2 is in progress: `diagnose` currently validates the alert and stops there; the agent run comes next. `remediate` doesn't exist yet (#5).
 
 ## Why
 
@@ -55,45 +55,70 @@ diagnosis + coverage section → runs/<alert_id>/
 | Field | Type | Notes |
 |---|---|---|
 | `alert_id` | string | |
-| `raised_at` | UTC timestamp | |
+| `raised_at` | ISO 8601 timestamp with a timezone | Timestamps without a timezone are rejected. Stored as UTC |
 | `server` | string | |
-| `database` | string or null | Missing database → the agent asks rather than guessing (#6) |
+| `database` | string or null | The key must be present. `null` means the source doesn't know; the agent asks rather than guessing (#6) |
 | `signal` | `blocking`, `slow_queries`, `storage`, `unknown` | Drives analyst selection |
-| `object` | string or null | |
+| `object` | string or null | The key must be present |
 | `metric` | `{name, value, threshold}` | |
 | `message` | string | Free text from the source. Treated as data, never instructions |
 
-Invalid alerts are rejected before any model call. Each monitoring source gets its own small adapter that maps its payload to this contract (#7).
+Unknown fields are rejected. Invalid alerts are rejected before any model call, with one line per failed field. Each monitoring source gets its own small adapter that maps its payload to this contract (#7). The model is `opsagent/alert.py`; sample alerts are in `alerts/`.
 
-## Setup (planned)
+## Setup
 
-Requires [uv](https://docs.astral.sh/uv/), an Anthropic API key, and a built [SqlServer.Mcp](https://github.com/CatFortman/SqlServer.Mcp). uv installs the Python version pinned in `.python-version` (3.13+) if you don't have it.
+Requires [uv](https://docs.astral.sh/uv/). uv installs the Python version pinned in `.python-version` (3.13+) if you don't have it.
 
 ```bash
-uv sync                          # creates .venv and installs dependencies from uv.lock
+uv sync      # creates .venv, installs dependencies from uv.lock, and installs opsagent itself
+```
+
+From #2 onwards, the agent run also needs an Anthropic API key and a built [SqlServer.Mcp](https://github.com/CatFortman/SqlServer.Mcp):
+
+```bash
 set ANTHROPIC_API_KEY=...
 set SQLSERVER_CONNECTION=...     # use a read-only SQL login
 ```
 
 Point the configuration at a **published** SqlServer.Mcp executable rather than `dotnet run`, which rebuilds on every session start.
 
-## Usage (planned)
-
-Run from the repo root:
+## Usage
 
 ```bash
-uv run python -m opsagent diagnose  --alert alerts/blocking-orders.json
-uv run python -m opsagent remediate --alert alerts/blocking-orders.json
+uv run -m opsagent diagnose --alert alerts/blocking-orders.json
+uv run -m opsagent diagnose --alert alerts/slow-queries-reporting.json
+uv run -m opsagent diagnose --alert alerts/unknown-no-database.json
+uv run -m opsagent --help
+uv run -m opsagent diagnose --help
 ```
 
-Each run writes `runs/<alert_id>/transcript.jsonl` (every message), `case.json` (state the host owns) and the diagnosis.
+`--alert` is resolved relative to your current directory, so the paths above assume you're in the repo root. The package itself runs from anywhere, for example from a scheduled task:
+
+```bash
+uv run --project C:\Projects\SqlServer.OpsAgent -m opsagent diagnose --alert D:\alerts\x.json
+```
+
+Today `diagnose` validates the alert, prints a one-line summary and exits. Once #2 is complete, each run writes `runs/<alert_id>/transcript.jsonl` (every message) and the diagnosis; #4 adds `case.json` (state the host owns).
+
+Planned (#5):
+
+```bash
+uv run -m opsagent remediate --alert alerts/blocking-orders.json
+```
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `2` | Invalid alert (missing file, not JSON, or breaks the contract), or invalid command-line arguments |
 
 ## Development
 
 ```bash
-uv run pytest
-uv run mypy
-uv run ruff check .
+uv run pytest                    # tests
+uv run mypy                      # strict type checks (opsagent, spikes, tests)
+uv run ruff check .              # lint
 uv add <package>                 # add a runtime dependency (updates pyproject.toml and uv.lock)
 uv add --dev <package>           # add a dev-only dependency
 ```
@@ -110,7 +135,3 @@ uv add --dev <package>           # add a dev-only dependency
 - [MigrationOps](https://github.com/CatFortman/MigrationOps): source of "what changed recently" (via SqlServer.Mcp's `recent_migrations`) and the apply path for `remediate`.
 - [SqlServer.EngineeringToolkit](https://github.com/CatFortman/SqlServer.EngineeringToolkit): the fixes `remediate` may propose.
 - [SqlServer.ScriptClassifier](https://github.com/CatFortman/SqlServer.ScriptClassifier): decides which Toolkit scripts are on the allowlist.
-
-## Learning context
-
-Part of a hands-on lab for the Claude Certified Architect – Foundations exam, built on the Claude Agent SDK. `spikes/raw_loop/` (#1) is a hand-written agentic loop on the Messages API, kept outside the package on purpose. The repo covers agentic loops (1.1), coordinator-subagent orchestration (1.2, 1.3), enforcement and handoff (1.4), hooks (1.5), tool distribution (2.3), escalation (5.2), error propagation (5.3) and provenance (5.6). Issues carry the `ccar-f` label except #7.

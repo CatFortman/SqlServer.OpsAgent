@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "anthropic>=1.15.0",
     "claude-agent-sdk>=0.2.174",
+    "pydantic>=2.14.1",
 ]
 
 [build-system]
@@ -22,7 +23,7 @@ module-root = ""
 
 [tool.mypy]
 strict = true
-files = ["opsagent", "spikes"]
+files = ["opsagent", "spikes", "tests"]
 
 [dependency-groups]
 dev = [
