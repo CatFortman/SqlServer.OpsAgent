@@ -1,4 +1,4 @@
-# Remediator
+# Coordinator
 
 ## Role
 Propose and, only after all code-enforced gates and human approval succeed, execute one narrowly scoped remediation action.
