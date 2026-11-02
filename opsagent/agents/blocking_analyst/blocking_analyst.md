@@ -32,5 +32,5 @@ Establish whether blocking was observed in the supplied incident scope, identify
 5. Correlate findings with the alert's time window and affected object.
 6. Identify gaps, including whether blocking had already cleared before collection.
 
-## Output
-Read `schema.json` and `example.json` before investigating. Return exactly one JSON object conforming to `schema.json`, without Markdown fences or surrounding prose. The example is illustrative only. Every material claim must reference evidence IDs. Use UTC ISO 8601 timestamps.
+## Output Schema
+Return one JSON object conforming to the Output schema below. Return exactly one JSON object conforming to the schema, without Markdown fences or surrounding prose. The example is illustrative only. Every material claim must reference evidence IDs. Use UTC ISO 8601 timestamps.
