@@ -32,7 +32,7 @@ class SubagentSession:
     spawned_at: str
     description: str
     prompt_preview: str
-    subagent_id: str  # Unique identifier like "RESEARCHER-1"
+    subagent_id: str  # Unique identifier like "BLOCKING-ANALYST-1"
     tool_calls: List[ToolCallRecord] = field(default_factory=list)
 
 
@@ -126,7 +126,7 @@ class SubagentTracker:
         Helper method to log tool use to console, transcript, and detailed log.
 
         Args:
-            agent_label: Label for the agent (e.g., "RESEARCHER-1", "MAIN AGENT")
+            agent_label: Label for the agent (e.g., "BLOCKING-ANALYST-1", "COORDINATOR")
             tool_name: Name of the tool being used
             tool_input: Optional tool input parameters for detailed logging
         """

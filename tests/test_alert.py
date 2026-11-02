@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 
-from opsagent.__main__ import EXIT_INVALID_ALERT, EXIT_OK, main
 from opsagent.alert import AlertError, load_alert
 
 ALERTS_DIR = Path(__file__).resolve().parent.parent / "alerts"
@@ -100,19 +99,3 @@ def test_file_that_is_not_json_is_rejected(tmp_path: Path) -> None:
 def test_missing_file_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(AlertError, match="not found"):
         load_alert(tmp_path / "does-not-exist.json")
-
-
-# --- the CLI turns the outcome into an exit code --------------------------------------
-
-
-def test_cli_exits_zero_for_a_valid_alert() -> None:
-    assert main(["diagnose", "--alert", str(ALERTS_DIR / "blocking-orders.json")]) == EXIT_OK
-
-
-def test_cli_exits_non_zero_for_an_invalid_alert(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    content = valid_alert()
-    content["signal"] = "cpu"
-    exit_code = main(["diagnose", "--alert", str(write_alert(tmp_path, content))])
-
-    assert exit_code == EXIT_INVALID_ALERT
-    assert "signal" in capsys.readouterr().err

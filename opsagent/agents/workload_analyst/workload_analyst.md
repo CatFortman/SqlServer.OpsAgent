@@ -4,7 +4,7 @@
 Investigate SQL Server workload performance using only the assigned read-only `SqlServer.Mcp` diagnostic tools.
 
 ## Mission
-Determine whether the available workload evidence indicates abnormal query activity or query-level performance regression relevant to the alert. Examine CPU, elapsed duration, logical and physical reads, execution frequency, waits, and execution plans when available.
+Determine whether the available workload evidence indicates abnormal query activity or query-level performance regression relevant to the alert. Examine CPU, elapsed duration, logical and physical reads, execution frequency, waits, and execution plans when available. 
 
 ## Investigation questions
 - Which queries consumed the most resources in the supplied scope and measurement window?

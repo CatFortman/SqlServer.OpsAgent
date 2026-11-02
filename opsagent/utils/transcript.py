@@ -1,60 +1,62 @@
-"""Transcript handling for conversation history."""
+"""Run transcript: every message from the agent run, one JSON object per line.
 
-import logging
-from datetime import datetime
+The transcript is evidence, not a log for humans. It must show the init tool list,
+which agent made each tool call (parent_tool_use_id), and how the run ended.
+"""
+
+import dataclasses
+import json
+from datetime import UTC, datetime
 from pathlib import Path
+from types import TracebackType
+from typing import IO, Any, Self
 
 
-def setup_session() -> tuple[Path, Path]:
-    """Setup session directory and transcript file.
-
-    Creates a session folder in logs/ with timestamp, containing both
-    transcript and detailed tool call logs.
-
-    Returns:
-        Tuple of (transcript_file_path, session_dir_path)
-    """
-    # Create session directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    session_dir = Path("logs") / f"session_{timestamp}"
-    session_dir.mkdir(parents=True, exist_ok=True)
-
-    # Transcript file in session directory
-    transcript_file = session_dir / "transcript.txt"
-
-    # Suppress noisy HTTP debug logs from urllib3
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-
-    return transcript_file, session_dir
+def _to_jsonable(obj: Any) -> Any:
+    """Convert SDK message objects (dataclasses) into plain JSON-safe values."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return {
+            "type": type(obj).__name__,
+            **{f.name: _to_jsonable(getattr(obj, f.name)) for f in dataclasses.fields(obj)},
+        }
+    if isinstance(obj, dict):
+        return {str(key): _to_jsonable(value) for key, value in obj.items()}
+    if isinstance(obj, list | tuple):
+        return [_to_jsonable(item) for item in obj]
+    if isinstance(obj, str | int | float | bool) or obj is None:
+        return obj
+    return str(obj)  # anything else: keep a readable trace rather than fail the run
 
 
 class TranscriptWriter:
-    """Helper to write output to both console and transcript file."""
+    """Writes runs/<alert_id>/transcript.jsonl. Use it as a context manager."""
 
-    def __init__(self, transcript_file: Path):
-        self.file = open(transcript_file, "w", encoding="utf-8")
+    def __init__(self, run_dir: Path) -> None:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        self.path = run_dir / "transcript.jsonl"
+        self._file: IO[str] = self.path.open("w", encoding="utf-8")
 
-    def write(self, text: str, end: str = "", flush: bool = True):
-        """Write text to both console and transcript."""
-        print(text, end=end, flush=flush)
-        self.file.write(text + end)
-        if flush:
-            self.file.flush()
+    def write_prompt(self, prompt: str) -> None:
+        self._write({"type": "Prompt", "prompt": prompt})
 
-    def write_to_file(self, text: str, flush: bool = True):
-        """Write text to transcript file only (not console)."""
-        self.file.write(text)
-        if flush:
-            self.file.flush()
+    def write_message(self, message: Any) -> None:
+        self._write(_to_jsonable(message))
 
-    def close(self):
-        """Close the transcript file."""
-        self.file.close()
+    def _write(self, record: dict[str, Any]) -> None:
+        record = {"recorded_at": datetime.now(UTC).isoformat(), **record}
+        self._file.write(json.dumps(record) + "\n")
+        self._file.flush()  # a crash mid-run still leaves everything up to that point
 
-    def __enter__(self):
+    def close(self) -> None:
+        self._file.close()
+
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *_args):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         self.close()
-        return False
