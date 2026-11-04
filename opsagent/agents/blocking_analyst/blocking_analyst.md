@@ -14,6 +14,18 @@ Establish whether blocking was observed in the supplied incident scope, identify
 - Is there evidence connecting blocking to the alert's symptom or affected object?
 - What could not be observed because the condition cleared or the available diagnostics were incomplete?
 
+## Tools
+- `check_blocking` (SqlServer.Mcp): a live snapshot of currently blocked requests. It returns `captured_at_utc` and `server_name` (both from the database server itself), `blocked_request_count`, and `blocked_requests`. Each blocked request has its database, wait type and time, statement text, and the state of its direct blocker (`blocker_status`, `blocker_open_transaction_count`). It shows the moment of the call, not history.
+
+Use the tool's `captured_at_utc` as the evidence's `captured_at`. Never invent a time; if a result has no capture time, say so in the evidence's `limitations`.
+
+If `server_name` differs from the server in your brief, report that as a limitation: the snapshot may not describe the alerting server.
+
+## Tool failures and empty results
+- If `check_blocking` is unavailable, denied, or returns an error, record it in `errors` with the tool name and the message, set `status` to `failed` or `partial`, and stop. Never report missing data as "no blocking".
+- An empty result is a valid observation: no blocked requests at `captured_at`. Report it as exactly that. It does not show that blocking never happened in the alert window.
+- A head blocker that is idle with an open transaction does not appear as a request itself. It appears only as the `blocking_session_id` of the requests it blocks, with `blocker_status` `sleeping` and `blocker_open_transaction_count` above 0. Report it from those columns; do not conclude it is absent.
+
 ## Operating rules
 - Read-only; never kill sessions, change isolation levels, alter objects, or run remediation.
 - Use only the supplied scope and assigned diagnostic tools.
@@ -33,4 +45,4 @@ Establish whether blocking was observed in the supplied incident scope, identify
 6. Identify gaps, including whether blocking had already cleared before collection.
 
 ## Output Schema
-Return one JSON object conforming to the Output schema below. Return exactly one JSON object conforming to the schema, without Markdown fences or surrounding prose. The example is illustrative only. Every material claim must reference evidence IDs. Use UTC ISO 8601 timestamps.
+Return exactly one JSON object conforming to the schema below, without Markdown fences or surrounding prose. Every material claim must reference evidence IDs. Use UTC ISO 8601 timestamps.

@@ -88,3 +88,18 @@ def test_transcript_is_one_json_object_per_line(tmp_path: Path, monkeypatch: pyt
     assert records[-1]["type"] == "ResultMessage"
     assert records[-1]["subtype"] == "success"
     assert all("recorded_at" in record for record in records)
+
+
+def test_missing_mcp_path_exits_3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")  # get past the first check
+    monkeypatch.delenv("SQLSERVER_MCP_PATH", raising=False)
+
+    assert run(tmp_path) == cli.EXIT_CONFIGURATION
+
+
+def test_mcp_path_that_does_not_exist_exits_3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("SQLSERVER_MCP_PATH", str(tmp_path / "missing.exe"))
+    monkeypatch.setenv("SQLSERVER_CONNECTION", "Server=test")
+
+    assert run(tmp_path) == cli.EXIT_CONFIGURATION

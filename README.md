@@ -73,11 +73,12 @@ Requires [uv](https://docs.astral.sh/uv/). uv installs the Python version pinned
 uv sync      # creates .venv, installs dependencies from uv.lock, and installs opsagent itself
 ```
 
-From #2 onwards, the agent run also needs an Anthropic API key and a built [SqlServer.Mcp](https://github.com/CatFortman/SqlServer.Mcp):
+Add environment secrets (.env):
 
 ```bash
-set ANTHROPIC_API_KEY=...
-set SQLSERVER_CONNECTION=...     # use a read-only SQL login
+ANTHROPIC_API_KEY=...
+SQLSERVER_MCP_PATH=...
+SQLSERVER_CONNECTION=...     # use a read-only SQL login
 ```
 
 Point the configuration at a **published** SqlServer.Mcp executable rather than `dotnet run`, which rebuilds on every session start.
@@ -95,7 +96,7 @@ uv run -m opsagent diagnose --help
 `--alert` is resolved relative to your current directory, so the paths above assume you're in the repo root. The package itself runs from anywhere, for example from a scheduled task:
 
 ```bash
-uv run --project C:\Projects\SqlServer.OpsAgent -m opsagent diagnose --alert D:\alerts\x.json
+uv run --env-file .env -m opsagent diagnose --alert D:\alerts\x.json
 ```
 
 Today `diagnose` validates the alert, prints a one-line summary and exits. Once #2 is complete, each run writes `runs/<alert_id>/transcript.jsonl` (every message) and the diagnosis; #4 adds `case.json` (state the host owns).

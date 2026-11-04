@@ -1,0 +1,14 @@
+{
+  "alert_id": "blk-live-0001",
+  "raised_at": "2026-11-03T23:00:00Z",
+  "server": "localhost",
+  "database": "Orders",
+  "signal": "blocking",
+  "object": "dbo.OrderHeader",
+  "metric": {
+    "name": "blocked_sessions",
+    "value": 2,
+    "threshold": 1
+  },
+  "message": "2 sessions blocked on Orders.dbo.OrderHeader (lab: run lab/sql/02 and 03 first)."
+}

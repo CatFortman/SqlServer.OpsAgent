@@ -1,11 +1,13 @@
 """Coordinator for `diagnose`: builds the agent options and runs one alert through them.
 
-Slice 2 of #2: the coordinator delegates to one analyst that has no tools yet, so the
-first runs test delegation and the transcript only. SqlServer.Mcp is attached in a later step.
+The coordinator delegates; only the blocking analyst can reach SQL Server, through its
+own SqlServer.Mcp process. Everything the run may do is defined here in code.
 """
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from claude_agent_sdk import (
     AgentDefinition,
@@ -26,6 +28,12 @@ PROMPTS_DIR = Path(__file__).parent / "agents"
 MODEL = "haiku"
 MAX_BUDGET_USD = 0.50
 
+# The key we register SqlServer.Mcp under. It becomes the middle part of every tool name:
+# mcp__<server key>__<tool name>. Define each full name once and reuse it, because it must
+# match in two places (the analyst's `tools` and the session's `allowed_tools`).
+SQLSERVER_SERVER_KEY = "sqlserver"
+CHECK_BLOCKING_TOOL = f"mcp__{SQLSERVER_SERVER_KEY}__check_blocking"
+
 
 class ConfigurationError(Exception):
     """The run can't start because the environment is missing something."""
@@ -35,12 +43,55 @@ class AgentRunError(Exception):
     """The agent run failed before it produced a result message."""
 
 
+@dataclass(frozen=True)
+class RunConfig:
+    """Settings read from the environment once, before any model call."""
+
+    sqlserver_mcp_path: Path
+    sqlserver_connection: str
+
+
+def load_config() -> RunConfig:
+    """Read and check the environment. Fails before a single token is spent."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise ConfigurationError("ANTHROPIC_API_KEY is not set.")
+
+    mcp_path = os.environ.get("SQLSERVER_MCP_PATH")
+    if not mcp_path:
+        raise ConfigurationError("SQLSERVER_MCP_PATH is not set (path to the published SqlServer.Mcp.exe).")
+    if not Path(mcp_path).is_file():
+        raise ConfigurationError(f"SQLSERVER_MCP_PATH does not point to a file: {mcp_path}")
+
+    connection = os.environ.get("SQLSERVER_CONNECTION")
+    if not connection:
+        raise ConfigurationError("SQLSERVER_CONNECTION is not set.")
+
+    return RunConfig(sqlserver_mcp_path=Path(mcp_path), sqlserver_connection=connection)
+
+
 def load_prompt(relative_path: str) -> str:
     """Read one prompt file from opsagent/agents/."""
     return (PROMPTS_DIR / relative_path).read_text(encoding="utf-8").strip()
 
 
-def build_options() -> ClaudeAgentOptions:
+def sqlserver_mcp_server(config: RunConfig) -> dict[str, Any]:
+    """Inline stdio config for SqlServer.Mcp: {server key: how to start the process}.
+
+    The SDK starts this exe as a child process when the analyst first needs it, talks
+    to it over stdin/stdout, and stops it at the end of the run. The child gets its
+    connection string from `env`: OpsAgent is the launcher, so OpsAgent passes it in.
+    """
+    return {
+        SQLSERVER_SERVER_KEY: {
+            "type": "stdio",
+            "command": str(config.sqlserver_mcp_path),
+            "args": [],
+            "env": {"SQLSERVER_CONNECTION": config.sqlserver_connection},
+        }
+    }
+
+
+def build_options(config: RunConfig) -> ClaudeAgentOptions:
     """Everything the run is allowed to do, defined in code (no settings files)."""
     analyst_prompt = load_prompt("blocking_analyst/blocking_analyst.md")
     analyst_schema = load_prompt("blocking_analyst/schema.json")
@@ -56,25 +107,33 @@ def build_options() -> ClaudeAgentOptions:
                 "performance or storage, and never proposes or runs fixes."
             ),
             prompt=blocking_analyst_prompt,
-            tools=[],  # none yet: slice 2 tests delegation only. SqlServer.Mcp comes next.
+            tools=[CHECK_BLOCKING_TOOL],  # AVAILABILITY: the only tool this analyst can see
+            mcpServers=[sqlserver_mcp_server(config)],  # the server exists for this analyst only
             model=MODEL,
         ),
     }
 
     return ClaudeAgentOptions(
         system_prompt=load_prompt("coordinator/coordinator.md"),
-        tools=["Agent"],  # the only tool the coordinator can see
-        allowed_tools=["Agent"],  # auto-approve it
-        permission_mode="dontAsk",  # anything else that would prompt is denied
+        tools=["Agent"],  # AVAILABILITY: the coordinator sees only the delegation tool
+        allowed_tools=[
+            "Agent",
+            CHECK_BLOCKING_TOOL,  # APPROVAL: lets the analyst's call pass step 5 in dontAsk
+        ],
+        permission_mode="dontAsk",  # anything not approved above is denied, never prompted
         setting_sources=[],  # ignore ~/.claude and any project .claude/
         agents=analysts,
         model=MODEL,
         max_budget_usd=MAX_BUDGET_USD,
+        env={
+            "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",  # analysts can't spawn their own subagents
+            "CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS": "1",  # remove general-purpose and friends
+        },
         hooks={
             "PreToolUse": [
                 HookMatcher(
                     matcher=DELEGATION_TOOL_MATCHER,
-                    hooks=[make_subagent_allowlist_hook(analysts)],  # allowlist = the analysts defined above
+                    hooks=[make_subagent_allowlist_hook(analysts.keys())],  # allowlist = analyst names
                 )
             ]
         },
@@ -85,17 +144,18 @@ async def run_diagnosis(alert: Alert, transcript: TranscriptWriter) -> ResultMes
     """Run the coordinator on one alert. Every message goes to the transcript.
 
     Returns the final ResultMessage whatever its subtype; the caller decides what a
-    non-success result means. Raises AgentRunError if the run ends without one.
+    non-success result means. Raises ConfigurationError before any model call if the
+    environment is incomplete, and AgentRunError if the run ends without a result.
     """
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise ConfigurationError("ANTHROPIC_API_KEY is not set.")
+    config = load_config()
+    options = build_options(config)
 
     prompt = alert.model_dump_json(indent=2)
     transcript.write_prompt(prompt)
 
     result: ResultMessage | None = None
     try:
-        async for message in query(prompt=prompt, options=build_options()):
+        async for message in query(prompt=prompt, options=options):
             transcript.write_message(message)
             if isinstance(message, ResultMessage):
                 result = message

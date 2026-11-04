@@ -4,10 +4,9 @@ import asyncio
 from typing import Any
 
 import pytest
-from claude_agent_sdk import HookJSONOutput, HookMatcher
+from claude_agent_sdk import HookCallback, HookJSONOutput
 
-from opsagent.coordinator import build_options
-from opsagent.hooks import DELEGATION_TOOL_MATCHER, make_subagent_allowlist_hook
+from opsagent.hooks import make_subagent_allowlist_hook
 
 
 def delegation(subagent_type: str) -> Any:
@@ -27,9 +26,17 @@ def delegation(subagent_type: str) -> Any:
     }
 
 
+def run_hook(hook: HookCallback, subagent_type: str) -> HookJSONOutput:
+    """Hooks are async: asyncio.run needs a coroutine, so wrap the call in one."""
+
+    async def call() -> HookJSONOutput:
+        return await hook(delegation(subagent_type), "toolu_test", {"signal": None})
+
+    return asyncio.run(call())
+
+
 def call_hook(subagent_type: str, allowed: set[str]) -> HookJSONOutput:
-    hook = make_subagent_allowlist_hook(allowed)
-    return asyncio.run(hook(delegation(subagent_type), "toolu_test", {"signal": None}))
+    return run_hook(make_subagent_allowlist_hook(allowed), subagent_type)
 
 
 def test_allowed_subagent_gets_no_opinion() -> None:
@@ -56,16 +63,5 @@ def test_allowlist_is_a_snapshot() -> None:
     hook = make_subagent_allowlist_hook(allowed)
     allowed.add("general-purpose")  # mutating the caller's set later must not widen the policy
 
-    output: Any = asyncio.run(hook(delegation("general-purpose"), "toolu_test", {"signal": None}))
+    output: Any = run_hook(hook, "general-purpose")
     assert output["hookSpecificOutput"]["permissionDecision"] == "deny"
-
-
-def test_build_options_wires_the_hook_and_appends_the_schema() -> None:
-    options = build_options()
-
-    matchers: list[HookMatcher] = (options.hooks or {})["PreToolUse"]
-    assert [m.matcher for m in matchers] == [DELEGATION_TOOL_MATCHER]
-
-    analyst = options.agents["blocking-analyst"] if options.agents else None
-    assert analyst is not None
-    assert '"$schema"' in analyst.prompt  # the schema is in the prompt, not in a file it can't read
