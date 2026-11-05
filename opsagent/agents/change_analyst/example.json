@@ -2,7 +2,7 @@
   "analyst": "change-analyst",
   "status": "complete",
   "scope": {
-    "server": "SQL-PROD-01",
+    "server": "localhost",
     "database": "Orders",
     "object": "dbo.OrderHeader",
     "window_start": "2026-10-29T12:30:00Z",

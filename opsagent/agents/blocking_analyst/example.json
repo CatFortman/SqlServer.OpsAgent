@@ -2,7 +2,7 @@
   "analyst": "blocking-analyst",
   "status": "partial",
   "scope": {
-    "server": "SQL-PROD-01",
+    "server": "localhost",
     "database": "Orders",
     "object": "dbo.OrderHeader",
     "window_start": "2026-10-29T13:00:00Z",

@@ -1,6 +1,6 @@
 {
   "alert_id": "blk-live-0001",
-  "raised_at": "2026-11-03T23:00:00Z",
+  "raised_at": "2026-11-04T01:12:00Z",
   "server": "localhost",
   "database": "Orders",
   "signal": "blocking",

@@ -11,7 +11,7 @@
     "action_type": "allowlisted_script",
     "action_id": "EngineeringToolkit.RebuildOrderSummary",
     "arguments": {
-      "server": "SQL-PROD-01",
+      "server": "localhost",
       "database": "Orders",
       "order_id": 481
     },

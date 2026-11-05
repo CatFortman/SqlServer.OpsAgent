@@ -2,7 +2,7 @@
   "analyst": "workload-analyst",
   "status": "complete",
   "scope": {
-    "server": "SQL-PROD-01",
+    "server": "localhost",
     "database": "Orders",
     "object": null,
     "window_start": "2026-10-29T13:00:00Z",

@@ -1,7 +1,7 @@
 {
   "alert_id": "blk-2026-10-31-0001",
   "raised_at": "2026-10-31T13:42:00Z",
-  "server": "SQL-PROD-01",
+  "server": "localhost",
   "database": "Orders",
   "signal": "blocking",
   "object": "dbo.OrderHeader",
@@ -10,5 +10,5 @@
     "value": 30,
     "threshold": 5
   },
-  "message": "30 sessions blocked for more than 60 seconds on SQL-PROD-01/Orders."
+  "message": "30 sessions blocked for more than 60 seconds on localhost/Orders."
 }
