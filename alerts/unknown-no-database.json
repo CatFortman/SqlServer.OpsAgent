@@ -1,7 +1,7 @@
 {
   "alert_id": "unk-2026-10-31-0003",
   "raised_at": "2026-10-31T14:05:00Z",
-  "server": "SQL-PROD-01",
+  "server": "localhost",
   "database": null,
   "signal": "unknown",
   "object": null,
